@@ -1,0 +1,6 @@
+---
+- name: remove temp files older than {{ numberOfDays }} 
+  hosts: all
+  tasks:
+  - name: remove temp files older than {{ numberOfDays }}
+    shell: find /tmp -mtime +{{ numberOfDays }} -exec rm {} \;
