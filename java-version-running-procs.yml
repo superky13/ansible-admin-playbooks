@@ -1,0 +1,6 @@
+---
+- name: get the unique java versions of all running java procs 
+  hosts: all
+  tasks:
+  - name: get the unique java versions of all running java procs
+    shell: for javapatch in $(pgrep -fl java | grep jdk | grep -v grep | awk '{print $2}'); do $javapath -version 2>&1; done | cut -d'"' -f2 | grep -vi java | uniq
