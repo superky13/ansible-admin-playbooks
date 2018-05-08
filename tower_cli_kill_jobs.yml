@@ -1,0 +1,14 @@
+---
+- name: more tower api testing
+  hosts: localhost
+  tasks:
+  - name: get JIDS running longer than 90 seconds
+    shell: tower-cli job list --all-pages --status running | awk '$5 > 90' | awk '{print $1}' | grep -v ^= | grep -v ^id
+    register: towerlongrunningjids
+
+  - name: cancel long running jobs
+    tower_job_cancel:
+      job_id: "{{ item | int }}"
+    with_items:
+    - "{{ towerlongrunningjids.stdout_lines }}"
+
