@@ -1,0 +1,15 @@
+- name: testing
+  hosts: localhost
+  tasks:
+    - name: get Facts
+      setup:
+        filter: ansible_interfaces
+      register: interface_list
+
+    - name: print faces
+      debug:
+        msg: "{{ interface_list.ansible_facts.ansible_interfaces[item] }}"
+      with_items:
+        - 2
+        - 3
+

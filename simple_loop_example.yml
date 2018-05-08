@@ -1,0 +1,15 @@
+---
+- name: loop testing
+  hosts: localhost
+  vars:
+    varName: ['one', 'two', 'three']
+  tasks:
+  - name: loop through vars and print them
+    shell: "echo {{ item }}"
+    with_items:
+    - "{{ varName }}"
+    register: varNamevar
+
+  - name: print loop output
+    debug:
+      msg: "{{ varNamevar.results | map(attribute='stdout') | list }}"

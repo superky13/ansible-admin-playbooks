@@ -1,0 +1,14 @@
+---
+- name: testing of tower API job list
+  hosts: localhost
+  tasks:
+  - name: testing tower job list
+    tower_job_list:
+      all_pages: True
+      status: failed
+      query: elapsed__gt=90
+    register: towerjoblist
+
+  - name: print regvar
+    debug:
+      var: "{{ towerjoblist.count }}"
