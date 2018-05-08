@@ -1,0 +1,22 @@
+---
+- name: testing of tower API job list
+  hosts: localhost
+  tasks:
+  - name: testing tower job list
+    tower_job_list:
+      all_pages: True
+      query: elapsed__gt=90
+    register: towerjoblist
+
+  - name: print regvar
+    debug:
+      msg: "{{ towerjoblist.results | selectattr('status', 'match', 'running') | map(attribute='id')  | list }}"
+    register: towerjobelapsed
+
+#  - name: cancel long running jobs
+#    tower_job_cancel:
+#      job_id: "{{ item | int }}"
+#    with_items:
+#    - "{{ towerjobelapsed.msg }}"
+
+### NOTE: bug submitted; doesn't work with status 'running' currently
