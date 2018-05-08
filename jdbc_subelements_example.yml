@@ -1,0 +1,22 @@
+---
+- name: nested vars from custom jdbc facts
+  hosts: localhost
+  vars:
+    clusters:
+    - serverName: MSB_2
+      datasourceName:
+      - name: test2
+      - name: test3
+    - serverName: MSB_1
+      datasourceName:
+      - name: test1
+
+  tasks:
+  - name: print jdbc datasource status per server per datasource
+    debug:
+      var: "ansible_local.jdbc.{{ item.0.serverName }}.{{ item.1.name}}.State"
+    with_subelements:
+    - "{{ clusters }}"
+    - datasourceName
+    register: datasourcestatus
+    when: ansible_local.jdbc[item.0.serverName][item.1.name].State != 'Running'
