@@ -1,0 +1,22 @@
+---
+- name: collect and print ldap account password information (days since pw was last set)
+  hosts: localhost
+  vars:
+    uid: ['list', 'of', 'your', 'ldap', 'users']
+  tasks:
+  - name: loop through the account uids and collect pw info
+    shell: ldapsearch -x -H ldap://yourLdapServer -b "uid={{ item }},ou=blah,dc=blah,dc=blah" pwdChangedTime | grep -v ^# | grep pwd | cut -d':' -f2 | cut -d' ' -f2 |cut -c -8 | sed 's/\(....\)\(..\)/\1-\2-/'
+    with_items:
+    - "{{ uid }}"
+    register: uidvar
+ 
+  - name: convert date returned from pwdChangedTime and compare to todays date
+    shell: "echo {{ item.1 }} account password set $(( ($(date +%s) - $(date -d {{ item.0 }} +%s)) / 86400 )) days ago"
+    with_together:
+    - "{{ uidvar.results | map(attribute='stdout') | list }}"
+    - "{{ uid }}"
+    register: acctexpire
+
+  - name: print number of days since the last pw change
+    debug:
+      msg: "{{ acctexpire.stdout }}" 
