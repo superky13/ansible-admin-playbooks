@@ -19,4 +19,4 @@
 
   - name: print number of days since the last pw change
     debug:
-      msg: "{{ acctexpire.stdout }}" 
+      msg: "{{ acctexpire.results | map(attribute='stdout') | list }}" 
