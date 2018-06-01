@@ -11,7 +11,7 @@
     register: uidvar
  
   - name: convert date returned from passwordexpirationtime and compare to todays date
-    shell: "if [[ $(( ($(date +%s) - $(date -d 2018-06-09 +%s)) / 86400 )) -le 0 ]]; then echo {{ item.1 }} account password EXPIRED $(( ($(date +%s) - $(date -d 2018-03-09 +%s)) / 86400 )); else echo {{ item.1 }} account password expires in $(( ($(date +%s) - $(date -d {{ item.0 }} +%s)) / 86400 )) days; fi"
+    shell: "if [[ $(( ($(date +%s) - $(date -d 2018-06-09 +%s)) / 86400 )) -gt 0 ]]; then echo {{ item.1 }} account password EXPIRED $(( ($(date +%s) - $(date -d 2018-03-09 +%s)) / 86400 )); else echo {{ item.1 }} account password expires in $(echo $(( ($(date +%s) - $(date -d {{ item.0 }} +%s)) / 86400 )) | sed 's/-//') days; fi"
     with_together:
     - "{{ uidvar.results | map(attribute='stdout') | list }}"
     - "{{ uid }}"
