@@ -1,0 +1,9 @@
+#!/bin/bash
+
+oracleDBs=(`cat /var/opt/oracle/oratab | grep -v ^# | grep -v ^+ | cut -d':' -f1 | sed '/^\s*$/d' | paste -s -d, - | sed 's/[^,]*/"&"/g'`)
+
+cat <<EOF
+{
+    "oracle_databases" : [$oracleDBs]
+}
+EOF
