@@ -1,0 +1,10 @@
+#!/bin/bash
+
+inventory_loc=(`cat /var/opt/oracle/oraInst.loc | grep inventory_loc | cut -d'=' -f2`)
+oracle_homes=(`cat $inventory_loc/ContentsXML/inventory.xml | grep -vwE "(REMOVED|HOME_LIST)" | cut -d'"' -f4 | sed '/^\s*$/d' | paste -s -d, - | sed 's/[^,]*/"&"/g'`)
+
+cat <<EOF
+{
+    "oracle_homes" : [$oracle_homes]
+}
+EOF
