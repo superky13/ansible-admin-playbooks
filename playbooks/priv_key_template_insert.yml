@@ -1,18 +1,26 @@
 ---
-- name: convert priv key and insert key value pair into credential template
+- name: convert priv key and insert key value pair into scm credential template
   hosts: localhost
   vars:
   - priv_key: ['yourPrivKey']
   - cred_tower: ['yourTowerCred.json']
+  - scmUser: 'yourSCMUser'
   tasks:
   - name: convert private key
     shell: "cat {{ item }} | grep -v '^-' | xargs | sed -e 's/ /\\n/g' | sed -e 's/^/-----BEGIN RSA PRIVATE KEY-----\\n/g' | sed -e 's/$/\\n-----END RSA PRIVATE KEY-----/g'| sed -e 's/^/"/g' | sed -e 's/$/"/g' | sed -e 's/^/"ssh_key_data":\ /g'  | sed -e 's/^/      /g' > /tmp/{{ item }}.converted"        
     with_items:
     - "{{ priv_key }}"
+
+  - name: copy credential template to localhost after inserting vars
+    template:
+      src: "template/{{ item }}.j2"
+      dest: "/tmp/{{ item }}"
+    with_items:
+    - "{{ cred_tower }}" 
  
   - name: insert of converted key into json template as a value for the ssh_key_data key
     lineinfile:
-      path: "/root/{{ item.0 }}"
+      path: "/tmp/{{ item.0 }}"
       regexp: 'ssh_key_data'
       insertafter: 'ssh_key_data'
       line: "{{ lookup('file', '/tmp/{{ item.1 }}.converted') }}"
