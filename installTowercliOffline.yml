@@ -1,0 +1,35 @@
+---
+- name: install tower-cli offline
+  hosts: localhost
+  vars:
+  - tower_node: 'yourTowerIPorFQDN'
+  - admin_tower_user: 'admin'
+  - admin_tower_password: ''
+  - tower_cli_cfg_path: '/root/.tower_cli.cfg'
+  - tower_cli_install_dir: '/root/tower-cli/'
+  - packages: ['python2-pip']
+  - tower_cli_packages: ['Click-7.0-py2.py3-none-any.whl', 'colorama-0.3.9-py2.py3-none-any.whl', 'six-1.11.0-py2.py3-none-any.whl', 'idna-2.7-py2.py3-none-any.whl', 'chardet-3.0.4-py2.py3-none-any.whl', 'certifi-2018.8.24-py2.py3-none-any.whl', 'urllib3-1.23-py2.py3-none-any.whl', 'requests-2.19.1-py2.py3-none-any.whl', 'PyYAML-3.13.tar.gz', 'ansible-tower-cli-3.3.0.tar.gz'] 
+  tasks:
+  - name: populate ~/.tower_cli.cfg with proper content
+    blockinfile:
+      block: |
+        host: {{ tower_node }}
+        username: {{ admin_tower_user }}
+        password: {{ admin_tower_password }}
+      create: true
+      mode: 0400
+      dest: "{{ tower_cli_cfg_path }}"
+
+  - name: ensure python2-pip is installed
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+    - "{{ packages }}"
+
+  - name: install requisite wheel archives and tarballs
+    shell: "pip install {{ item }}"
+    args:
+      chdir: "{{ tower_cli_install_dir }}"
+    with_items:
+    - "{{ tower_cli_packages }}"
