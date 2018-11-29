@@ -1,0 +1,9 @@
+LDAP URL: ldap://yourLDAPserverFQDN:389/DC=example,DC=com
+Auto Create Artifactory Users: Checked
+Email Attribute: mail
+Search filter: uid={0}
+Search Base: cn=accounts
+Secure LDAP Search: Checked
+Search Sub-tree: Checked
+Manager DN: uid=admin,CN=users,CN=compat,DC=example,DC=come
+Manager Password: yourBindPassword
