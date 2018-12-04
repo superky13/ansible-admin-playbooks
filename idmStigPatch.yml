@@ -1,4 +1,5 @@
 ---
+#### Please note this is meant to be run after STIG and after IdM configuration has taken place.  
 - name: IdM STIG Patch 
   hosts: all
   become: true
