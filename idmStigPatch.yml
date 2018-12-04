@@ -1,0 +1,37 @@
+---
+- name: IdM STIG Patch 
+  hosts: all
+  become: true
+  become_user: "root"
+  tasks:
+  - name: ensure pam_ldap and sssd installed
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+    - "pam_ldap"
+    - "sssd"
+
+  - name: use authconfig to ensure that sssd is enabled (PAM)
+    command: "/sbin/authconfig --enablesssd --updateall"
+    register: authconfigsssd
+    failed_when: '"missing" in authconfigsssd.stdout'
+  
+  - name: ensure sssd.conf has the proper permissions
+    file:
+      path: "/etc/sssd/sssd.conf"
+      mode: 0600
+      owner: "root"
+      group: "root"
+    notify: sssd_restart
+
+  - name: use authconfig to ensure that ldap is enabled and points to the proper idm server/domain (PAM)
+    command: "/sbin/authconfig --enableldap --enableldapauth --ldapserver=ldap://{{ idm_server }}:{{ idm_port }} --ldapbasedn='{{ idm_base_dn }}' --disablecache --updateall"
+    register: authconfigldap
+    failed_when: '"missing" in authconfigldap.stdout'
+   
+  handlers:
+  - name: sssd_restart 
+    systemd:
+      name: "sssd"
+      state: restarted
