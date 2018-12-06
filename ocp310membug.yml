@@ -1,0 +1,24 @@
+---
+- name: for version 3.10 of OCP, this addresses the memory bug when deleting a ServiceInstance is attempted too many times
+  hosts: all
+  tasks:
+  - name: register variable if controller-manager pods are reporting a state of CrashLoopBackoff
+    shell: "oc get pods -l app=controller-manager -n kube-service-catalog | grep -i crashloopbackoff"
+    register: controllermanagerstate
+
+  - name: collect the ServiceInstances (pod name)
+    shell: "oc get serviceinstances --all-namespaces | grep -v NAMESPACE | awk '{print $2}'"
+    register: serviceinstancepodname
+    when: controllermanagerstate.stdout != ""
+
+  - name: collect the ServiceInstances (namespace)
+    shell: "oc get serviceinstances --all-namespaces | grep -v NAMESPACE | awk '{print $1}'"
+    register: serviceinstancenamespace
+    when: controllermanagerstate.stdout != ""
+
+  - name: remove the offending ServiceInstances from ETCD
+    shell: "etcdctl3 del /registry/servicecatalog.k8s.io/serviceinstances/{{ item.0}}/{{ item.1 }}"
+    with_together:
+    - "{{ serviceinstancenamespace.stdout_lines }}"
+    - "{{ serviceinstancepodname.stdout_lines }}"
+    when: controllermanagerstate.stdout != ""
