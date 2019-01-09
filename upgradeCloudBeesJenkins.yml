@@ -39,4 +39,4 @@
   - name: use the oc binary to check the rollout status of sts and cjoc
     shell: "oc rollout status sts cjoc -n {{ namespace }}"
     register: rolloutstatus
-    until: rolloutstatus.rc == 0
+    failed_when: rolloutstatus.rc != 0
