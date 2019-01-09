@@ -1,0 +1,42 @@
+---
+- name: upgrade cloudbees jenkins to latest version
+  ## change to first OCP master in your cluster
+  become: true
+  become_user: root
+  hosts: all
+  vars:
+  - namespace: "cloudbees"
+  - cloudbeesversion: "cloudbees-core_2.138.4.3_openshift"
+  - cloudbeesurl: "https://nectar-downloads.cloudbees.com/cloudbees-core/cloud/latest/cloudbees-core_2.138.4.3_openshift.tgz"
+  - tmpdir: "/tmp"
+  - cloudbeesworkdir: "{{ tmpdir }}/{{ cloudbeesversion }}"
+  tasks:
+  - name: retrieve and unpack the latest cloudbees tarball 
+    unarchive:
+      src: "{{ cloudbeesurl }}"
+      dest: "{{ tmpdir }}"
+      remote_src: yes
+  
+  - name: add the correct hostname to cloudbees-core.yml
+    replace:
+      path: "{{ cloudbeesworkdir }}/cloudbees-core.yml"
+      regexp: 'cje.example.com'
+      replace: 'cje.cloudbees.apps.mgt.devsecops.gov'
+      backup: yes
+  
+  - name: add the correct project to cloudbees-core.yml
+    replace:
+      path: "{{ cloudbeesworkdir }}/cloudbees-core.yml"
+      regexp: 'myproject'
+      replace: 'cloudbees'
+      backup: yes
+
+  - name: use the oc binary to apply the new cloudbees-core.yml
+    shell: "oc apply -f cloudbees-core.yml"
+    args:
+      chdir: "{{ cloudbeesworkdir }}"
+
+  - name: use the oc binary to check the rollout status of sts and cjoc
+    shell: "oc rollout status sts cjoc -n {{ namespace }}"
+    register: rolloutstatus
+    until: rolloutstatus.rc == 0
