@@ -1,4 +1,5 @@
 ---
+## this code uses the jq package to parse the json output returned from the APIs
 - name: query and report app license expiry
   hosts: localhost
   vars:
