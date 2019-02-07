@@ -1,0 +1,39 @@
+---
+- name: query and report app license expiry
+  hosts: localhost
+  vars:
+  - appNames: ['twistlock','tower','artifactory', 'cloudbees']
+  - username: ""
+  - password: ""
+  - twistlockurl: "https://url/api/v1/settings/license"
+  - towerurl: "https://url/api/v2/config/"
+  - artifactoryurl: "https://url/artifactory/api/system/licenses"
+  - cloudbeesvalidateurl: "https://url/cjoc/descriptorByName/hudson.license.LicenseManager/validate"
+  - cloudbeeslicenseurl: "https://url/cjoc/license/"
+  tasks:
+  ## this is collecting twistlock/tower/artifactory/cloudbees license expiry; when adding more apps, need to add them to the same element in both the appNames and expiryData arrays
+  - name: collect twistlock license expiry
+    shell: export twistlockExpireDate=`curl -sk -u {{ username }}:'{{ password }}' {{ twistlockurl }} | jq .expiration_date | cut -d'T' -f1 | tr -d \"`; echo $(( ($(date --date=$twistlockExpireDate +%s) - $(date +%s))/86400 ))
+    register: twistlockexpiry
+
+  - name: collect tower license expiry
+    shell: curl -sk -u {{ username }}:'{{ password }}' {{ towerurl }} | jq '.license_info.grace_period_remaining' | awk '{print $1/86400}' | cut -d'.' -f1
+    register: towerexpiry
+
+  - name: collect artifactory license expiry
+    shell: export artifactoryExpireDate=`curl -sk -u {{ username }}:'{{ password }}' {{ artifactoryurl }} | jq .validThrough | tr -d \"`; echo $(( ($(date --date="$artifactoryExpireDate" +%s) - $(date +%s))/86400 ))
+    register: artifactoryexpiry
+
+  - name: collect cloudbees license expiry
+    shell: export cloudbeesLicenseExpiry="`curl -sk {{ cloudbeesvalidateurl }} -u {{ username }}:'{{ password }}' -H 'Accept-Encoding: gzip, deflate, br' -H 'Content-type: application/x-www-form-urlencoded' -H 'Accept: text/javascript, text/html, application/xml, text/xml, */*' -H 'X-Requested-With: XMLHttpRequest' -H 'Referer: {{ cloudbeeslicenseurl }}' -H 'Jenkins-Crumb: 0fe1689a0e34f7ef72c7046a681f3019' --data '{{ lookup('file','/root/towerDayTwoCode/keyCertFile') }}' --compressed | grep -Eo '[[:space:]][[:alpha:]]{3}[[:space:]][[:digit:]]{2}[,]\[[:space:]][[:digit:]]{4}'`; echo $(( ($(date --date="$cloudbeesLicenseExpiry" +%s) - $(date +%s))/86400 ))
+    register: cloudbeesexpiry
+
+  - set_fact:
+      expiryData: ['{{ twistlockexpiry.stdout }}', '{{ towerexpiry.stdout }}', '{{ artifactoryexpiry.stdout }}', '{{ cloudbeesexpiry.stdout }}']
+
+  - name: print app expiry info
+    debug:
+      msg: "{{ item.0 }} license expires: {{ item.1 }} days"
+    with_together:
+    - "{{ appNames }}"
+    - "{{ expiryData }}"
