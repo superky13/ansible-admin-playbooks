@@ -1,0 +1,32 @@
+---
+- name: update management cluster with the token that jenkins will use to deploy to the enclave cluster
+  hosts: localhost
+  become: true
+  become_user: root
+  vars:
+  - env_name: 'dev'
+  - domain: 'example.com'
+  - project_name_new: 'ky13-{{ env_name }}'
+  - project_name_mgt: 'ky13'
+  - mgt_ocp: 'ocp001.mgt.{{ domain }}'
+  - new_ocp: 'ocp001.{{ env_name }}.{{ domain }}'
+  - ocp_user: 'ky13'
+  - ocp_password: ''
+  tasks:
+  - name: login to {{ new_ocp }} cluster
+    shell: oc login {{ new_ocp }} --username={{ ocp_user }} --password={{ ocp_password }} --insecure-skip-tls-verify=True
+
+  - name: retrieve token value from {{ env_name }} cluster for {{ project_name_new }}
+    shell: for token in $(oc get secrets -n {{ project_name_new }} | grep default-token | awk '{print $1}'); do if [[ -z $(oc describe secrets -n {{ project_name_new }} $token | grep create-dockercfg-secrets) ]]; then oc get secrets -n {{ project_name_new }} $token -o=go-template --template '{{ '{{' }} .data.token {{ '}}' }}'; fi; done
+    register: new_token_value
+
+  - name: login to {{ mgt_ocp }} cluster
+    shell: oc login {{ mgt_ocp }} --username={{ ocp_user }} --password={{ ocp_password }} --insecure-skip-tls-verify=True
+
+  - name: collect {{ env_name }}-cluster-credentials token value for comparison to new value
+    shell: oc get secrets {{ env_name }}-cluster-credentials -n {{ project_name_mgt }} -o=go-template --template '{{ '{{' }} .data.ky13key {{ '}}' }}'
+    register: old_token_value
+
+  - name: patch MGT {{ project_name_mgt }} secret {{ env_name }}-cluster-credentials
+    shell: oc patch secret {{ env_name }}-cluster-credentials -n {{ project_name_mgt }} -p '{"data":{"ky13key":"{{ new_token_value.stdout }}"{{ '}}' }}'
+    when: old_token_value.stdout != new_token_value.stdout
