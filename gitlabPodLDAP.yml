@@ -1,0 +1,22 @@
+---
+- name: Push gitlab.rb LDAP config to OpenShift Pod
+  hosts: single ocp master
+  become: true
+  become_user: root
+  vars:
+  - idm_server: idm.example.com
+  tasks:
+  - name: determine gitlab pod name on openshift infra
+    shell: oc project gitlab && oc get pods | awk '{print $1}' | sed -n '2p' 
+    register: gitlabpodname
+
+  - name: copy gitlab.rb.j2 to remote 
+    template:
+      src: templates/gitlab.rb.j2
+      dest: /tmp/gitlab.rb
+
+  - name: push the new gitlab.rb to the openshift gitlab pod
+    shell: "oc rsync /tmp/ {{ gitlabpodname.stdout_lines[1] }}:/etc/gitlab/ --exclude=* --include=gitlab.rb --no-perms"
+
+  - name: bounce the gitlab-ctl process to pickup the new gitlab.rb changes
+    shell: "oc exec -it {{ gitlabpodname.stdout_lines[1] }} -- /opt/gitlab/bin/gitlab-ctl restart"
