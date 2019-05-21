@@ -1,0 +1,56 @@
+---
+- name: post custom config.xml to jenkins job
+  hosts: localhost
+  vars:
+  - jenkins_user: "admin"
+  - jenkins_admin_password: 'pw'
+  - jenkins_job_name: 'buildName'
+  - cloudbees_team_master: "teamMasterUrl"
+  tasks:
+  - name: get jenkins crumb
+    uri:
+      user: "{{ jenkins_user }}"
+      password: "{{ jenkins_admin_password }}"
+      force_basic_auth: yes
+      validate_certs: no
+      url: "https://{{ cloudbees_team_master}}/crumbIssuer/api/json"
+      return_content: yes
+      status_code: 200, 404
+    register: jenkins_crumb
+    until: jenkins_crumb.status == 200 and jenkins_crumb.content.find('Please wait while Jenkins is getting ready to work') == -1
+    retries: 10
+    delay: 5
+
+  - name: set fact for jenkins crumb
+    set_fact:
+      jenkins_crumb_token: "{{ jenkins_crumb.json.crumbRequestField }}={{ jenkins_crumb.json.crumb }}"
+
+  - name: create a job named {{ jenkins_job_name }}
+    ignore_errors: True
+    uri:
+      user: "{{ jenkins_user }}"
+      password: "{{ jenkins_admin_password }}"
+      validate_certs: no
+      body: "{{ lookup('file', 'yourConfigFile.xml') }}"
+      headers:
+        Jenkins-Crumb: "{{ jenkins_crumb_token.split('=')[1] }}"
+        Content-Type: application/xml
+      force_basic_auth: yes
+      status_code: 200
+      url: "https://{{ cloudbees_team_master }}/createItem?name={{ jenkins_job_name }}"
+      method: POST
+    register: createjob
+    failed_when: createjob.stdout is search('blah')
+ 
+  - name: kick off a build of {{ jenkins_job_name }}
+    uri:
+      user: "{{ jenkins_user }}"
+      password: "{{ jenkins_admin_password }}"
+      validate_certs: no
+      headers:
+        Jenkins-Crumb: "{{ jenkins_crumb_token.split('=')[1] }}"
+        Content-Type: application/xml
+      force_basic_auth: yes
+      status_code: 201
+      url: "https://{{ cloudbees_team_master }}/job/{{ jenkins_job_name }}/build"
+      method: POST
