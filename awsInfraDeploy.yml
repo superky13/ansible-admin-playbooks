@@ -1,0 +1,35 @@
+---
+- name: deploy base infrastructure vms to aws
+  hosts: localhost
+  vars:
+    servers: 
+    - { name: yourFQDN, ip: 1.2.3.4, security_group: default, disks: [{ name: '/dev/sdh', size: '10'}, { name: '/dev/sdg', size: '15'}], keypair: 'yourKey', instance_type: 't2.micro', region: 'us-east-2', image: 'ami-....', vpc_subnet_id: 'subnet-....' }
+    aws_key: ''
+    aws_secret: ''
+  tasks:
+  - name: create ec2 instances 
+    ec2_instance: 
+      aws_access_key: "{{ aws_key }}"
+      aws_secret_key: "{{ aws_secret }}"
+      key_name: "{{ item.keypair }}"
+      name: "{{ item.name }}"
+      instance_type: "{{ item.instance_type }}"
+      region: "{{ item.region }}"
+      security_group: "{{ item.security_group }}"
+      validate_certs: yes
+      image_id: "{{ item.image }}"
+      network:
+        private_ip_address: "{{ item.ip }}"
+      vpc_subnet_id: "{{ item.vpc_subnet_id }}"
+      tags:
+        vm_type: "{{ item.security_group }}"
+    register: vmcreate
+    with_items:
+    - "{{ servers }}"
+
+  - name: loop over disks to create ebs volumes and attach them
+    include_tasks: ebsvolumeattach.yml
+    with_items:
+    - "{{ lookup('subelements', servers, 'disks', {'skip_missing': True}) }}"
+    loop_control:
+      loop_var: disk_name
