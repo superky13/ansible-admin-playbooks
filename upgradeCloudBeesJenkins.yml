@@ -1,38 +1,68 @@
----
+--
 - name: upgrade cloudbees jenkins to latest version
   ## change to first OCP master in your cluster
   become: true
   become_user: root
   hosts: all
   vars:
+  ## mgthost needs to be a host in the MGT domain
+  - mgthost: ""
+  - artifactoryuser: 'admin'
+  - artifactorypassword: ''
+  ## can replace this if you're not using multiple environments/domains
+  - domain: "{{ inventory_hostname.split('.')[1] }}"
   - namespace: "cloudbees"
-  - cloudbeesversion: "cloudbees-core_2.138.4.3_openshift"
-  - cloudbeesurl: "https://nectar-downloads.cloudbees.com/cloudbees-core/cloud/latest/cloudbees-core_2.138.4.3_openshift.tgz"
+  - cloudbeesversion: "cloudbees-core_2.176.2.3_openshift"
+  - cloudbeesartifactoryrepo: "https://artifactory.example.com/artifactory/generic-local"
+  - cloudbeesartifactoryurl: "{{ cloudbeesartifactoryrepo }}/{{ cloudbeesversion }}.tgz"
   - tmpdir: "/tmp"
   - cloudbeesworkdir: "{{ tmpdir }}/{{ cloudbeesversion }}"
   tasks:
+  - name: create {{ namespace }} if it doesn't already exist
+    shell: "oc new-project {{ namespace }}"
+    ignore_errors: true
+    
+  - name: retrieve {{ cloudbeesversion }} from cloudbees
+    get_url:
+      url: "https://nectar-downloads.cloudbees.com/cloudbees-core/cloud/{{ cloudbeesversion.split('_')[1] }}/{{ cloudbeesversion }}.tgz"
+      dest: "{{ tmpdir }}"
+    delegate_to: "{{ mgthost }}"
+
+  - name: push {{ cloudbeesversion }} artifact to artifactory
+    shell: "curl -k -u {{ artifactoryuser }}:'{{ artifactorypassword }}' -T ./{{ cloudbeesversion }}.tgz {{ cloudbeesartifactoryurl }}"
+    args:
+      chdir: "{{ tmpdir }}"
+    delegate_to: "{{ mgthost }}"
+    
   - name: retrieve and unpack the latest cloudbees tarball 
     unarchive:
-      src: "{{ cloudbeesurl }}"
+      src: "{{ cloudbeesartifactoryurl }}"
       dest: "{{ tmpdir }}"
       remote_src: yes
   
   - name: add the correct hostname to cloudbees-core.yml
     replace:
       path: "{{ cloudbeesworkdir }}/cloudbees-core.yml"
-      regexp: 'cje.example.com'
-      replace: 'cje.cloudbees.apps.mgt.devsecops.gov'
+      regexp: '[-A-Za-z0-9 ]*.example.com'
+      replace: "cje.{{ namespace }}.apps.{{ domain }}.devsecops.gov"
       backup: yes
   
   - name: add the correct project to cloudbees-core.yml
     replace:
       path: "{{ cloudbeesworkdir }}/cloudbees-core.yml"
       regexp: 'myproject'
-      replace: 'cloudbees'
+      replace: '{{ namespace }}'
+      backup: yes
+      
+  - name: correct the host spacing param after aforementioned substitution of the new fqdn
+    replace:
+      path: "{{ cloudbeesworkdir }}/cloudbees-core.yml"
+      regexp: 'host:cje.{{ namespace }}.apps.{{ domain }}.devsecops.gov'
+      replace: 'host: cje.{{ namespace }}.apps.{{ domain }}.devsecops.gov'
       backup: yes
 
   - name: use the oc binary to apply the new cloudbees-core.yml
-    shell: "oc apply -f cloudbees-core.yml"
+    shell: "oc apply -f cloudbees-core.yml -n {{ namespace }}"
     args:
       chdir: "{{ cloudbeesworkdir }}"
 
@@ -40,3 +70,14 @@
     shell: "oc rollout status sts cjoc -n {{ namespace }}"
     register: rolloutstatus
     failed_when: rolloutstatus.rc != 0
+     
+  #- name: ensure we're using the {{ namespace }} project
+  #  shell: "oc project {{ namespace }}"
+    
+  #- name: collect initialAdminPassword 
+  #  shell: "oc -n {{ namespace }} exec -it cjoc-0 -- /bin/cat /var/jenkins_home/secrets/initialAdminPassword"
+  #  register: cloudbeesadminpw
+    
+  #- name: print initialAdminPassword
+  #  debug:
+  #    msg: "Your initial admin password for Cloudbees Jenkins is: {{ cloudbeesadminpw.stdout }}"
