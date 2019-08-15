@@ -1,0 +1,100 @@
+---
+- name: Push  org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml shared library plugin config to OpenShift Pod
+  hosts: all
+  become: true
+  become_user: root
+  vars:
+  - idm_server: 'idm.example.com'
+  - cloudbeesTarget: team-master-automation-test
+  - gitlabSharedPipeline: 'http://example.com/shared-pipeline-java.git'
+  - gitlabJenkinsUtils: 'http://example.com/jenkins-utils-library.git'
+  - jenkins_admin_password: ''
+  tasks:
+  - name: determine cloudbees team master pod name on openshift infra
+    shell: oc project cloudbees && oc get pods | awk '{print $1}' | grep {{ cloudbeesTarget }} 
+    register: cloudbeesMasterPodName
+
+  - name: determine cloudbees hostname
+    shell: oc project cloudbees && oc get routes | grep {{ cloudbeesTarget }} | awk '{print $2}'
+    register: cloudbeesMasterHostname
+    
+  - name: determine cloudbees route
+    shell: oc project cloudbees && oc get routes | grep {{ cloudbeesTarget }} | awk '{print $2 $3}'
+    register: cloudbeesMasterRoute
+
+  - name: copy org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml.j2 to remote 
+    template:
+      src: 'templates/org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml.j2'
+      dest: '/tmp/org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml'
+
+  - name: push the new 'org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml' to the openshift cloudbeesMaster pod
+    shell: oc cp /tmp/org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml {{ cloudbeesMasterPodName.stdout_lines[1] }}:/var/jenkins_home/
+    #shell: "oc rsync /tmp/ {{ cloudbeesMasterPodName.stdout_lines[1] }}:/var/jenkins_home/ --exclude=* --include='org.jenkinsci.plugins.workflow.libs.GlobalLibraries.xml' --no-perms"
+
+  - name: Wait for Jenkins to become available
+    uri:
+      user: admin
+      password: "{{ jenkins_admin_password }}"
+      validate_certs: no
+      force_basic_auth: yes
+      url: "https://{{ cloudbeesMasterRoute.stdout_lines[1] }}"
+      status_code: 200
+    register: result
+    until: result.status == 200
+    retries: 60
+    delay: 1
+
+  - name: Get Jenkins crumb
+    uri:
+      user: admin
+      password: "{{ jenkins_admin_password }}"
+      force_basic_auth: yes
+      validate_certs: no
+      url: "https://{{ cloudbeesMasterRoute.stdout_lines[1] }}/crumbIssuer/api/json"
+      return_content: yes
+      status_code: 200, 404
+    register: jenkins_crumb
+    until: jenkins_crumb.status == 200 and jenkins_crumb.content.find('Please wait while Jenkins is getting ready to work') == -1
+    retries: 10
+    delay: 5
+
+  - name: Set crumb token
+    set_fact:
+      jenkins_crumb_token: "{{ jenkins_crumb.json.crumbRequestField }}={{ jenkins_crumb.json.crumb }}"
+
+ # Taking out the check for restart for now and forcing a restart on every run of this playbook
+ # - name: Check if we need to restart Jenkins to activate plugins
+ #   uri:
+ #     user: admin
+ #     password: "{{ jenkins_admin_password }}"
+ #     force_basic_auth: yes
+ #     url: "{{ cloudbeesMasterRoute.stdout_lines[1] }}/updateCenter/api/json\
+ #     ?tree=restartRequiredForCompletion&{{ jenkins_crumb_token }}"
+ #     return_content: yes
+ #   register: jenkins_restart_required
+  
+  - name: Restart Jenkins to activate new plugins
+    uri:
+      user: admin
+      password: "{{ jenkins_admin_password }}"
+      validate_certs: no
+      headers:
+        Jenkins-Crumb: "{{ jenkins_crumb_token.split('=')[1] }}"
+      force_basic_auth: yes
+      status_code: 302
+      url: "https://{{ cloudbeesMasterRoute.stdout_lines[1] }}/restart"
+      method: POST
+ #  when: jenkins_restart_required.json.restartRequiredForCompletion|bool
+
+  - name: Wait for Jenkins to become available
+    uri:
+      user: admin
+      password: "{{ jenkins_admin_password }}"
+      validate_certs: no
+      force_basic_auth: yes
+      url: "https://{{ cloudbeesMasterRoute.stdout_lines[1] }}"
+      status_code: 200
+    register: result
+    until: result.status == 200
+    retries: 120
+    delay: 1
