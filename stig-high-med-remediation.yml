@@ -1,0 +1,157 @@
+---
+- name: remediate all high and medium stig scan findings
+  hosts: localhost
+  tasks:
+  - name: ensure that empty or null passwords are not allowed 
+    replace: 
+      path: "{{ item }}"
+      regexp: "nullok"
+      replace: ""
+    with_items:
+    - "/etc/pam.d/system-auth"
+    - "/etc/pam.d/password-auth"
+    tags:
+    - pam
+
+  - name: ensure that passwords are prohibited from resuse for a min of five generations
+    lineinfile: 
+      path: "{{ item }}"
+      insertafter: "pam_pwquality.so"
+      line: "password requisite pam_pwhistory.so use_authtok remember=5 retry=3"
+    with_items:
+    - "/etc/pam.d/system-auth"
+    - "/etc/pam.d/password-auth"
+    tags:
+    - pam
+
+  - name: local passwords must use a min of four character classes
+    replace:
+      path: "/etc/security/pwquality.conf"
+      regexp: "# minclass = 0"
+      replace: "minclass = 4"
+
+  - name: disable account identifiers after password expires
+    lineinfile:
+      path: "/etc/default/useradd"
+      regexp: "INACTIVE="
+      line: "INACTIVE=0"
+
+  - name: ensure that root grub2 menu is password protected
+    copy:
+      content: !vault | 
+          $ANSIBLE_VAULT;1.1;AES256
+          64616165336530366230343166643436653437646461363836303333353736333032396537653166
+          6165356535343239303335383236646263623430336638300a313465353736366437386137316438
+          64393263386430663764613337353431393332656337373834663966323937646136663863373566
+          6262666635663037620a636132356638333365666437646462336639633162636235616230353366
+          61306165303466306661383362383263626131626234623335326166383237633438373639306437
+          64373737303533376439616563366332396261656364626661626564333437333036326131363263
+          64323439336338383436623335656132333835373161383434313137633133363632633438663861
+          63346263643830346236336661656639666637636362613765613464373737333039636334393762
+          35323432666461373333323635643834363732616561376235396435626231663834346633636432
+          35303630376363363737613233313532313535373430386634656639313930363235323366646163
+          66326261343262393039383233373563313964396235613964633937383865313465646630663930
+          38366438353364616661313233313738326139616664323762616464396566613764393536353137
+          34383433396465336231633837636333353138643638633961316635623932346239613734636665
+          63623332633966356663326662363736393064306435343639316638323234396436643062393665
+          39636265663266633332346639656461626636656238323231646539653437353464323231663931
+          37323264616265613737343334626631353434653733393533343932376338343461626533613865
+          61383262633861323737393035356363633638343236316561323836343932626165303638346564
+          65306665313335373132666330616533313836313732346166386537353635333061383666303534
+          653032316365316635383537616463396230
+      dest: "/boot/grub2/user.cfg"
+      mode: 0600
+      owner: root
+      group: root
+
+  - name: ensure that 00-security-settings displays the proper banner
+    copy:
+      content: | 
+               [org/gnome/login-screen]
+               banner-message-enable=true
+               banner-message-text='You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only. By using this IS (which includes any device attached to this IS), you consent to the following conditions:\n- The USG routinely intercepts and monitors communications on this IS for purposes including, but not limited to, penetration testing, COMSEC monitoring, network operations and defense, personnel misconduct (PM), law enforcement (LE), and counterintelligence (CI) investigations.\n - At any time, the USG may inspect and seize data stored on this IS.\n - Communications using, or data stored on, this IS are not private, are subject to routine monitoring, interception, and search, and may be disclosed or used for any USG-authorized purpose.\n - This IS includes security measures (e.g., authenticationand access controls) to protect USG interests--not for your personal benefit or privacy.\n - Notwithstanding the above, using this IS does not constitute consent to PM, LE or CI investigative searching or monitoring of the content of privileged communications, or work product, related to personal representation or services by attorneys, psychotherapists, or clergy, and their assistants. Such communications and work product are private and confidential. See User Agreement for details.'
+               enable-smartcard-authentication=true
+      dest: "/etc/dconf/db/gdm.d/00-security-settings"
+      owner: root
+      group: root
+      mode: 0644 
+
+
+  - name: ensure that 00-screensaver lock is activated
+    copy:
+      content: | 
+               [org/gnome/desktop/session]
+               idle-delay=uint32 900
+               [org/gnome/desktop/screensaver]
+               lock-enabled=true
+               idle-activation-enabled=true
+               lock-delay=uint32 5
+      dest: "/etc/dconf/db/local.d/00-screensaver"
+      owner: root
+      group: root
+      mode: 0644 
+   
+  - name: ensure that HostbasedAuthentication is set to no for sshd
+    replace:
+      regexp: "#HostbasedAuthentication no"
+      replace: "HostbasedAuthentication no"
+      path: "/etc/ssh/sshd_config"
+
+  - name: ensure that IgnoreRhosts is set to yes for sshd
+    replace:
+      regexp: "#IgnoreRhosts yes"
+      replace: "IgnoreRhosts yes"
+      path: "/etc/ssh/sshd_config"
+
+  - name: ensure that banner is set to issue for sshd
+    replace:
+      regexp: "#Banner none"
+      replace: "banner /etc/issue"
+      path: "/etc/ssh/sshd_config"
+
+  - name: restart sshd
+    systemd:
+      name: sshd
+      state: restarted
+
+  - name: ensure that usb storage kernel module is blacklisted
+    copy:
+      content: "blacklist usb-storage"
+      dest: "/etc/modprobe.d/blacklist.conf"
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: ensure audit.rules contains the proper rules
+    copy: 
+      content: | 
+               ## First rule - delete all
+               -D
+               ## Increase the buffers to survive stress events.
+               ## Make this bigger for busy systems
+               -b 8192
+               ## Set failure mode to syslog
+               -f 1
+               -a always,exit -F arch=b32 -S execve -C uid!=euid -F euid=0 -k setuid
+               -a always,exit -F arch=b64 -S execve -C uid!=euid -F euid=0 -k setuid
+               -a always,exit -F arch=b32 -S execve -C gid!=egid -F egid=0 -k setgid
+               -a always,exit -F arch=b64 -S execve -C gid!=egid -F egid=0 -k setgid
+               -a always,exit -F path=/usr/sbin/setfiles -F auid>=1000 -F auid!=4294967295 -k privileged-priv_change
+               -w /etc/sudoers -p wa -k privileged-actions 
+               -w /etc/sudoers.d/ -p wa -k privileged-actions
+               -a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=4294967295 -k privileged-mount
+               -a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=4294967295 -k privileged-mount
+               -a always,exit -F path=/usr/bin/mount -F auid>=1000 -F auid!=4294967295 -k privileged-mount
+               -w /usr/bin/kmod -p x -F auid!=4294967295 -k module-change
+               -a always,exit -F arch=b32 -S create_module -k module-change 
+               -a always,exit -F arch=b64 -S create_module -k module-change
+      dest: "/etc/audit/rules.d/audit.rules"
+      mode: 0644
+      owner: root
+      group: root
+
+  - name: reload audit.rules 
+    shell: service auditd restart 
+ 
+  - name: update dconf
+    shell: dconf update 
