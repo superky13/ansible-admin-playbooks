@@ -1,0 +1,61 @@
+---
+  - name: Publish Content Views
+    hosts: localhost
+    gather_facts: False
+    connection: local
+    vars_files: satellite.yml
+    tasks:
+
+    - name: Ensure boto, botocore, and boto3 modules are installed
+      pip:
+        virtualenv: /var/lib/awx/venv/ansible
+        virtualenv_site_packages: yes
+        name:
+          - apypie
+          - PyYAML
+        extra_args: --user --trusted-host artifactory.com -i https://artifactory.com/pypi-remote/simple
+
+    - name:  "Publish a content view and promote that version CV"
+      katello_content_view_version:
+        username: "{{ sat_admin }}"
+        password: "{{ sat_password }}"
+        server_url: https://{{ sat_server }}
+        force_promote: yes
+        force_yum_metadata_regeneration: yes
+        content_view: "{{ item }}"
+        validate_certs: false
+        organization: "{{ org }}"
+        lifecycle_environments: "{{ locations }}"
+      with_items: "{{ cv_list }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Publish a content view and promote that version CCV
+      katello_content_view_version:
+        username: "{{ sat_admin }}"
+        password: "{{ sat_password }}"
+        server_url: https://{{ sat_server }}
+        force_promote: yes
+        force_yum_metadata_regeneration: yes
+        content_view: "{{ item }}"
+        validate_certs: false
+        organization: "{{ org }}"
+        lifecycle_environments: "{{ locations }}"
+      with_items: "{{ ccv_list }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Get list of Capsules
+      shell: hammer capsule list | awk '{print $3}' | grep sat | grep -v master
+      register: capsules
+      delegate_to: "{{ sat_server }}"
+      run_once: true
+      when: sync_capsules | bool
+
+    - name: synchronize capsule
+      delegate_to: "{{ sat_server }}"
+      ignore_errors: True
+      shell: "hammer capsule content synchronize --async --name {{ item }}"
+      loop: "{{ capsules.stdout }}"
+      run_once: true
+      when: sync_capsules | bool
