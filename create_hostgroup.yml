@@ -1,0 +1,27 @@
+---
+  - name: Create Host Groups
+    hosts: localhost
+    connection: local
+    gather_facts: False
+    become: yes
+    vars_files: satellite.yml
+    vars_prompt:
+    - name: sat_admin
+      prompt: "Enter Satellite Admin Username"
+      private: no
+    - name: sat_password
+      prompt: "Enter Satellite Admin Password"
+      private: yes
+    tasks:
+      - name: "Create a Hostgroup"
+        foreman_hostgroup:
+          name: "{{ item }}"
+          server_url: https://{{ sat_server }}
+          organization: "{{ org }}"
+          lifecycle_environment: "{{ item }}"
+          validate_certs: no
+          locations: "{{ item }}"
+          username: "{{ sat_admin }}"
+          password: "{{ sat_password }}"
+          state: present
+        with_items: "{{ locations }}"
