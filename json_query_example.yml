@@ -1,0 +1,12 @@
+--- 
+- name: iterate through json array using json_query with a nested variable key
+  hosts: localhost
+  vars:
+    server_name: localhost
+    query_1: 'results[*].firstKey."'
+    query_2: '"[*].{name: name, otherkey: otherkey}'
+  - name: set fact for host firewall
+    set_fact:
+     firewall_names: "{{ lookup('file', 'file.json') | from_json | json_query(querystring) }}"
+    vars:
+      querystring: "{{ query_1 + server_name + query_2 }}"
