@@ -1,6 +1,6 @@
 ---
 - name: remediate all high and medium stig scan findings
-  hosts: localhost
+  hosts: "{{ stig_hosts | default('localhost') }}"
   tasks:
   - name: ensure that empty or null passwords are not allowed 
     replace: 
