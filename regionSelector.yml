@@ -1,0 +1,14 @@
+---
+- name: simple region ami mapping snippet
+  hosts: localhost
+  vars:
+  - regionVar: 'us-gov-east'
+  - regions:
+    - regionName: 'us-gov-east'
+      amiName: 'amiOne'
+    - regionName: 'us-gov-west'
+      amiName: 'amiTwo'
+  tasks:
+  - name: print ami based on user region selection 
+    debug:
+      msg: "{{ regions | selectattr('regionName', 'match', regionVar) | map(attribute='amiName') | list }}"
