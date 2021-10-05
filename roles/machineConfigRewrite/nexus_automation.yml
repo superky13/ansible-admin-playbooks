@@ -1,0 +1,21 @@
+---
+- name: local testing of config object updates
+  hosts: localhost
+  vars:
+  - nexus_endpoint: "nexus.ky13buildbox.com:1234"
+  - image_repo: ['docker.io', 'redhat.registry.io', 'quay.io']
+  - image_template: "localregistry.conf.j2"
+  - image_repo_dest_file: "/root/rpmSocomBastion/ansibleTesting/localregistry.conf"
+  - machine_config_template: "machine_config.j2"
+  - machine_config_dest_file: "/root/rpmSocomBastion/ansibleTesting/machineconfig.yml"
+  tasks:
+  - name: populate localregistries.conf with imagerepo array elements
+    template:
+      src: "{{ image_template }}"
+      dest: "{{ image_repo_dest_file }}"
+
+  - name: create machineconfig object with proper encoded data
+    template:
+      src: "{{ machine_config_template }}"
+      dest: "{{ machine_config_dest_file }}"
+       

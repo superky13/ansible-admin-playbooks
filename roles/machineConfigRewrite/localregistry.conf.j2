@@ -1,0 +1,42 @@
+# Redirect unqualified pulls to {{ nexus_endpoint }}
+unqualified-search-registries = ["{{ nexus_endpoint }}"]
+ 
+# This content came from the openshift-install process and it's imageContentSourcePolicy
+#unqualified-search-registries = ["registry.access.redhat.com", "docker.io"]
+[[registry]]
+  prefix = ""
+  location = "quay.io/openshift-release-dev/ocp-release"
+  mirror-by-digest-only = true
+ 
+  [[registry.mirror]]
+	location = "{{ nexus_endpoint }}/ocp4/openshift4"
+ 
+[[registry]]
+  prefix = ""
+  location = "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
+  mirror-by-digest-only = true
+ 
+  [[registry.mirror]]
+	location = "{{ nexus_endpoint }}/ocp4/openshift4"
+ 
+[[registry]]
+  prefix = ""
+  location = "{{ nexus_endpoint }}"
+  insecure = true
+ 
+# These configs should go into /etc/containers/registries.conf.d/, but
+#   /etc/containers/registries.conf.d/ doesn't work until
+#   https://github.com/containers/image/commit/eee0de5d00a4b4ed84429c8b5c4bd44f4328ce21
+# It would be best configure this via an ImageContentSourcePolicy, but
+#   that mechanism doesn't have a way to set `mirror-by-digest-only = false`
+ 
+# Redirect all requests to {{ nexus_endpoint }}
+{% for image in image_repo %}
+[[registry]]   
+  prefix = "{{ image }}"
+  location = "{{ nexus_endpoint }}"
+  insecure = true
+  blocked = false
+  mirror-by-digest-only = false
+{% endfor %}
+
