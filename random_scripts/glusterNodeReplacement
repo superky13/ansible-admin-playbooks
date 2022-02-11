@@ -1,0 +1,63 @@
+Identify original UUID for hostname
+From a server in the operation guslter cluster:
+
+----
+gluster peer status
+----
+
+On replaced host:
+Edit `/var/lib/glusterd/glusterd.info` and replace new UUID with original UUID
+
+Copy peer info files (for each peer) to replaced server from operational server:
+
+----
+ls -al /var/lib/glusterd/peers
+scp /var/lib/glusterd/peers/<UUID> <replaced_host>:/var/lib/glusterd/peers
+----
+
+(Note: any host should container all peers, but if a self definition peer is missing, check another server)
+
+Obtain the volume id of the volume(s) from an operational server:
+
+----
+getfattr -d -m. -ehex <brick-path>
+----
+
+On replaced server, set volume id to brick
+
+----
+setfattr -n trusted.glusterfs.volume-id -v <volume-id> <brick-path>
+
+setfattr -n trusted.glusterfs.volume-id -v 0x4e5ecb96ddf94df5823ef2a63a319ebb /data/glusterfs/ha_data/brick1/brick
+setfattr -n trusted.glusterfs.volume-id -v 0x76a55b9ca8424ad0a1720315bc40a14a /data/glusterfs/vm_data2/brick1/brick
+setfattr -n trusted.glusterfs.volume-id -v 0xe86db45937e743858926d3ec46121ae1 /data/glusterfs/file_storage/brick1/brick
+
+----
+
+Create folders for glusterd
+
+----
+mkdir -p <brick-path> .glusterfs/indices
+chmod 0600 <brick-path>/.glusterfs
+chmod 0600 <brick-path>/.glusterfs/indices
+----
+
+Perform the following on the replaced host to ensure the heal proccess happens from 
+the other bricks in the system:
+
+----
+mkdir /mnt/tempvol
+mount -t glusterfs <existing_host>:/<volume_name> /mnt/tempvol
+mkdir /mnt/tempvol/tempdir
+rmdir /mnt/tempvol/tempdir
+setfattr -n trusted.non-existent-key -v abc /mnt/tempvol
+setfattr -x trusted.non-existent-key /mnt/tempvol
+umount /mnt/tempvol
+----
+
+Start glusterd on replaced hosted and initiate heal:
+
+----
+systemctl status start glusterd
+gluster volume heal <volume_name> full
+----
