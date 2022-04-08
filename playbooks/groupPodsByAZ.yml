@@ -1,0 +1,21 @@
+---
+- name: collect and group pods by availability zone
+  hosts: localhost
+  vars:
+  - ocp_project: '' ## NEED TO DEFINE
+  tasks:
+  - name: collect pods running on worker nodes
+    shell: oc get pods -o wide -n {{ ocp_project }} | grep -v "^NAME" | awk '{print $1 " " $7}' 
+    register: poddetails
+
+  - name: collect worker node zone info
+    shell: for nodezones in $(oc get pods -o wide -n {{ ocp_project }} | grep -v "^NAME" | awk '{print $7}' | sort| uniq); do oc get node $nodezones --label-columns failure-domain.beta.kubernetes.io/zone | awk '{print $1 " " $6}'; done
+    register: workerzonedetails
+
+  - name: print pods and worker zone
+    debug:
+      msg: |
+          {% for podname in poddetails.stdout_lines %}
+            POD: {{ podname.split(' ')[0] }} ZONE: {% for workerzone in workerzonedetails.stdout_lines if workerzone.split(' ')[0] == podname.split(' ')[1] %} {{ workerzone.split(' ')[1] }} {% endfor %} 
+          {% endfor %}
+
