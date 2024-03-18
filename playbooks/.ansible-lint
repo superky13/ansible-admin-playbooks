@@ -1,0 +1,21 @@
+skip_list:
+- internal-error
+- name[casing]
+- name[template]
+- no-changed-when
+- command-instead-of-shell
+- role-name[path]
+- jinja[spacing]                 
+- name[missing]                      
+- yaml[comments]             
+- yaml[colons]
+- yaml[line-length]          
+- yaml[empty-lines]
+- yaml[trailing-spaces]       
+- yaml[truthy]     
+- yaml[indentation]
+- risky-file-permissions   
+- risky-shell-pipe
+- literal-compare
+warn_list:
+- fqcn[action-core]
