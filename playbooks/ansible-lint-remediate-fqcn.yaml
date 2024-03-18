@@ -1,0 +1,36 @@
+---
+- name: sanitize playbooks before linting
+  hosts: localhost
+  vars:
+    sanitize_playbooks: 'yourPlaybook.yaml'
+  tasks:
+  - name: comment vaulted vars to allow the linter to continue search for missing fqcn
+    ansible.builtin.replace:
+      regexp: "- '/path/to/vault.yml'"
+      replace: "#- '/path/to/vault.yml'"
+      path: "{{ sanitize_playbooks }}"
+
+  - name: use ansible-lint to locate missing fqcn module references
+    ansible.builtin.shell:
+      cmd: "ansible-lint --parseable --format json {{ sanitize_playbooks }}"
+    register: playbook_lint_output
+
+  - name: print line numbers that need fqcn adjustment
+    ansible.builtin.debug:
+      msg: "missing fqcn module reference on line: {{ item['location']['lines']['begin'] }}"
+    loop: "{{ playbook_lint_output.stdout_lines[0] }}"
+    loop_control:
+      label: "{{ item['location']['path'] }}"
+
+  - name: remediate fqcn compliance findings
+    ansible.builtin.shell:
+     cmd: "sed -i '{{ item['location']['lines']['begin'] | int +1}}s/{{ (item['content']['body'].split('`')[1]).split('.')[2] }}/{{ item['content']['body'].split('`')[1] }}/' {{ sanitize_playbooks }}"
+    loop: "{{ playbook_lint_output.stdout_lines[0] }}"
+    loop_control:
+      label: "{{ item['location']['path'] }}"
+
+  - name: uncomment vaulted vars after linter run
+    ansible.builtin.replace:
+      regexp: "#- '/path/to/vault.yml'"
+      replace: "- '/path/to/vault.yml'"
+      path: "{{ sanitize_playbooks }}"
