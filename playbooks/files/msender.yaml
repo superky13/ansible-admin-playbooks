@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: msender
+  labels:
+    app: multicast-validate
+  namespace: multicast-validate
+spec:
+  containers:
+    - name: msender
+      image: registry.access.redhat.com/ubi8
+      command: ["/bin/sh", "-c"]
+      args:
+        ["dnf -y install socat && sleep inf"]

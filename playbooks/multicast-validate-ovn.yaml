@@ -1,0 +1,47 @@
+---
+- name: validate multicast functionality on OVNKubernetes network
+  hosts: localhost
+  tasks:
+  - name: create namespace with multicast enabled
+    ansible.builtin.shell: 
+      cmd: "oc apply -f files/mnamespace.yaml"
+
+  - name: create multicast listener and sender pods
+    ansible.builtin.shell: 
+      cmd: "oc apply -f {{ item }}"
+    loop:
+    - "files/mlistener.yaml"
+    - "files/msender.yaml"
+
+  - name: check pod status
+    ansible.builtin.shell:
+      cmd: "oc get pods -n multicast-validate"
+    delay: 5
+    retries: 15
+    register: podstatus
+    until: "'Running' in podstatus.stdout"
+
+  - name: obtain listener pod ip
+    ansible.builtin.shell:
+      cmd: "oc get pods mlistener -n multicast-validate -o jsonpath='{.status.podIP}'"
+    register: podip
+
+  - name: obtain pod cidr
+    ansible.builtin.shell:
+      cmd: "oc get Network.config.openshift.io cluster -o jsonpath='{.status.clusterNetwork[0].cidr}'"
+    register: podcidr
+
+  - name: start the multicast listener
+    ansible.builtin.shell:
+      cmd: "oc exec mlistener -n multicast-validate -i -t -- socat UDP4-RECVFROM:30102,ip-add-membership=224.1.0.1:{{ podip.stdout }},fork EXEC:hostname &"
+
+  - name: send a multicast message
+    ansible.builtin.shell:
+      cmd: oc exec msender -n multicast-validate -i -t -- /bin/bash -c "echo | socat STDIO UDP4-DATAGRAM:224.1.0.1:30102,range={{ podcidr.stdout }},ip-multicast-ttl=64"
+    register: mmessageoutput
+
+  - name: print multicast validation status
+    ansible.builtin.debug:
+      msg: "{% if 'mlistener' in mmessageoutput.stdout %}Multicast validated{% else %}Multicast is not working{% endif %}"
+    register: validatestatus
+    failed_when: "'Multicast is not working' in validatestatus.msg"

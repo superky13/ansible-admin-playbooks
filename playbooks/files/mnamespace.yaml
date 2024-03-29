@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    k8s.ovn.org/multicast-enabled: "true"
+  labels:
+    kubernetes.io/metadata.name: multicast-validate
+  name: multicast-validate
+spec: {}

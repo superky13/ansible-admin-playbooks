@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mlistener
+  labels:
+    app: multicast-validate
+  namespace: multicast-validate
+spec:
+  containers:
+    - name: mlistener
+      image: registry.access.redhat.com/ubi8
+      command: ["/bin/sh", "-c"]
+      args:
+        ["dnf -y install socat hostname && sleep inf"]
+      ports:
+        - containerPort: 30102
+          name: mlistener
+          protocol: UDP
