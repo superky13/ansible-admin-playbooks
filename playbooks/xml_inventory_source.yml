@@ -1,0 +1,56 @@
+- name: collect role names
+  ansible.builtin.xml:
+    path: "/path/to/xml"
+    xpath: /path/to/element/rolename
+    content: text
+  register: collectroles
+
+- name: collect hostnames
+  ansible.builtin.xml:
+    path: "/path/to/xml"
+    xpath: /path/to/element/hostname
+    content: text
+  register: collecthosts
+
+- name: collect role membership
+  ansible.builtin.xml:
+    path: "/path/to/xml"
+    xpath: /path/to/element/hostname/roles
+    content: text
+  register: collecthostroles
+
+- name: map hosts to reformatted roles
+  ansible.builtin.set_fact:
+    collecthostsandroles: "{ 'names': '{{ item.0.name }}', 'groups': '{{ item.1.deployed | regex_replace(':[^,]*','')}}'}"
+  with_together:
+  - "{{ collecthosts.matches }}"
+  - "{{ collectroles.matches }}"
+  register: collectmerged
+
+- name: set another fact with the aforementioned registered list
+  ansible.builtin.set_fact:
+    collectmergelist: "{{ collectedmerged.results | map(attribute='ansible_facts.collecthostsandroles') | list }}"
+
+- name: create ini file to be used an inventory source
+  ansible.builtin.template:
+    src: inventory.ini.j2
+    dest: inventory.ini
+
+
+------------
+inventory.ini.j2
+------------
+#jinja2:lstrip_blocks: 'True'
+[all]
+{% for hosts in collecthosts.matches %}
+{{ hosts.name }}
+{% endfor %}
+
+{% for grouproles in collectroles.matches %}
+[{{ grouproles.name }}]
+  {% for collecthosts in collectmergedlist %}
+     {% if grouproles.name in collecthosts['groups'] %}
+{{ collecthosts['names'] }}
+     {% endif %}
+  {% endfor %}
+{% endfor %}
